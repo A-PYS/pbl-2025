@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Reading Quiz</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+        body {
+            font-family: 'Fredoka One', cursive;
+            text-align: center;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 40px;
+            color: #ff5733;
+        }
+
+        .reading-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .speak-button { background-color: #28a745; color: white; }
+        .stop-button { background-color: #dc3545; color: white; display: none; }
+        .submit-button { background-color: #ff5733; color: white; }
+        .next-button { background-color: #007bff; color: white; display: none; }
+        .restart-button { background-color: #6c757d; color: white; display: none; }
+
+        .button:hover { opacity: 0.8; }
+
+        .feedback { font-weight: bold; margin-top: 10px; }
+        .correct { color: green; animation: glow 1s ease-in-out infinite alternate; }
+        .wrong { color: red; animation: shake 0.3s ease-in-out; }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 5px green; }
+            to { text-shadow: 0 0 15px lime; }
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+
+        #score { font-size: 20px; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Kuiz Bacaan Interaktif</h1>
+    <div class="reading-container">
+        <p id="reading-text"></p>
+        <button class="button speak-button" onclick="speakText()">🔊 Bacakan</button>
+        <button class="button stop-button" onclick="stopText()">⏹ Henti Bacaan</button>
+        <audio id="audio-player" style="display:none;" preload="auto"></audio> <!-- Add preload here -->
+    </div>
+
+    <div class="question-container">
+        <h2>Isi tempat kosong</h2>
+        <p id="question-text"></p>
+        <select id="answer" disabled></select> <!-- 禁用选择框 -->
+        <br>
+        <button class="button submit-button" onclick="checkAnswer()">Hantar</button>
+        <button class="button next-button" onclick="nextStory()">Seterusnya</button>
+        <button class="button restart-button" onclick="restartGame()">Mula Semula</button>
+    </div>
+
+    <p id="feedback" class="feedback"></p>
+    <p id="score"></p>
+
+    <script>
+        let stories = [
+            {
+                text: "Syiqin membantu ibu menyediakan hidangan makan malam di dapur. Mereka memotong sayur sambil berbual-bual tentang sekolah.",
+                question: "Syiqin dan ibu memotong __ .",
+                options: ["daging", "sayur", "ikan"],
+                answer: "sayur"
+            },
+            {
+                text: "Chia Yen menanam bunga ros di halaman rumahnya. Dia menanam pelbagai jenis bunga ros. Setiap pagi, dia akan menyiram bunga tersebut.",
+                question: "Chia Yen menyiram __ di halaman rumahnya.",
+                options: ["pokok", "sayur", "bunga ros"],
+                answer: "bunga ros"
+            },
+            {
+                text: "Pada setiap petang, Hanis dan Angela akan mengulang kaji pelajaran Matematik di sekolah. Mereka selalu meminta bantuan Cikgu Farah jika terdapat soalan yang tidak dapat diselesaikan oleh mereka.",
+                question: "Hanis dan Angela akan mengulang kaji pelajaran Matematik di sekolah pada setiap __ .",
+                options: ["petang", "pagi", "malam"],
+                answer: "petang"
+            },
+            {
+                text: "Pada hari Sabtu yang lalu, Fazira mengikuti ibunya berkunjung ke Pasar Borneo Seri Kembangan. Terdapat pelbagai makanan tradisional masyarakat Sabah dan Sarawak di sana.",
+                question: "Terdapat pelbagai makanan __ masyarakat Sabah dan Sarawak di Pasar Borneo Seri Kembangan.",
+                options: ["moden", "tradisional", "sedap"],
+                answer: "tradisional"
+            },
+            {
+                text: "Ina dan kakaknya akan pulang ke kampung halaman sempena cuti Hari Raya Aidilfitri. Mereka tidak sabar untuk bertemu dengan ibu dan bapa mereka di sana.",
+                question: " Ina dan kakaknya tidak sabar untuk bertemu dengan __ mereka.",
+                options: ["sanak-saudara", "datuk dan nenek", "ibu dan bapa"],
+                answer: "ibu dan bapa"
+            }
+        ];
+
+        let currentStory = 0;
+        let score = 0;
+        let audio = document.getElementById("audio-player");
+        let answered = false; // 防止重复作答
+
+        function loadStory() {
+            answered = false; // 每次加载新题时重置答题标志
+
+            document.getElementById("reading-text").innerText = stories[currentStory].text;
+            document.getElementById("question-text").innerText = stories[currentStory].question;
+
+            let answerSelect = document.getElementById("answer");
+            answerSelect.innerHTML = "";
+            answerSelect.disabled = false; // 启用选择框
+
+            let defaultOption = document.createElement("option");
+            defaultOption.value = "";
+            defaultOption.innerText = "-- Pilih jawapan --";
+            answerSelect.appendChild(defaultOption);
+
+            stories[currentStory].options.forEach(option => {
+                let optionElement = document.createElement("option");
+                optionElement.value = option;
+                optionElement.innerText = option;
+                answerSelect.appendChild(optionElement);
+            });
+
+            document.getElementById("feedback").innerText = "";
+            document.querySelector(".stop-button").style.display = "none";
+            document.querySelector(".next-button").style.display = "none";
+            document.querySelector(".submit-button").style.display = "inline-block";
+        }
+
+        function checkAnswer() {
+            if (answered) return; // 防止重复答题
+
+            let answer = document.getElementById("answer").value;
+            let feedback = document.getElementById("feedback");
+
+            if (answer === "") {
+                feedback.innerText = "⚠️ Sila pilih jawapan dahulu!";
+                feedback.className = "feedback wrong";
+                return;
+            }
+
+            if (answer === stories[currentStory].answer) {
+                feedback.innerText = "✅ Betul!";
+                feedback.className = "feedback correct";
+                score += 20;
+            } else {
+                feedback.innerText = `❌ Salah! Jawapan betul: ${stories[currentStory].answer}`;
+                feedback.className = "feedback wrong";
+            }
+
+            answered = true; // 标记这题已经答过
+            document.querySelector(".submit-button").style.display = "none";
+            document.querySelector(".next-button").style.display = "inline-block";
+            document.getElementById("answer").disabled = true; // 禁用选择框
+        }
+
+        function nextStory() {
+            currentStory++;
+            if (currentStory < stories.length) {
+                loadStory();
+                document.querySelector(".submit-button").style.display = "inline-block";
+                document.querySelector(".next-button").style.display = "none";
+            } else {
+                alert("Permainan Tamat! Skor anda: " + score);
+            }
+        }
+
+        function restartGame() {
+            currentStory = 0;
+            score = 0;
+            loadStory();
+            document.querySelector(".submit-button").style.display = "inline-block";
+            document.querySelector(".next-button").style.display = "none";
+        }
+
+        function speakText() {
+            let textToSpeak = document.getElementById("reading-text").innerText;
+            let audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(textToSpeak)}&tl=ms&total=1&idx=0&textlen=0&client=tw-ob`;
+            audio.src = audioUrl;
+            audio.play();
+            document.querySelector(".stop-button").style.display = "inline-block";
+        }
+
+        function stopText() {
+            audio.pause();
+            audio.currentTime = 0;
+            document.querySelector(".stop-button").style.display = "none";
+        }
+
+        loadStory();
+    </script>
+</body>
+</html>
